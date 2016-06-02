@@ -11,6 +11,11 @@
   font: 20pt bold 'Vollkorn';
   color: #bbb;
 }
+#drop_zone:hover
+{
+border-color:green;
+border-style: dotted;
+}
 .gcode
 {
   font-family:"Courier New",monospace;
@@ -18,12 +23,17 @@
   height:50%;
 
 }
+.gcode_drop
+{
+  height:10%;
+
+}
 }</style>
 
 <title>Simple gcode truncator, for grbl</title></head>
 <body>
 <h3>Simple gcode truncator, for grbl</h3>
-<div id="drop_zone">Drop Gcode file here</div>
+<div id="drop_zone"><b>Drop Gcode file here </b> or copy it to text area below: <br><textarea class="gcode gcode_drop" id="gcode_to_modify">Drop gcode file or gcode here</textarea></div>
 <output id="list"></output>
 <div id="file_text"></div>
 <p> Code availible at: <a href="https://github.com/AdoHaha/uprosc_gcode">https://github.com/AdoHaha/uprosc_gcode</a> </p>

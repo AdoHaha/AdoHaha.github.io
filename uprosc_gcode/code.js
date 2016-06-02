@@ -12,6 +12,18 @@ function download(text, name, type) {
     a.click();
 }
 
+
+ function focus_gcode(event)
+		    {
+
+		    event.target.select();
+
+
+
+
+		    }
+
+
 function simplify_gcode(gcode_str) // this replaces all .number with truncated version of this number
 	{
 	var re1 = new RegExp("([.])([0-9]+)","g");
@@ -62,31 +74,10 @@ function simplify_gcode(gcode_str) // this replaces all .number with truncated v
 		return function(evt){
 	      
 		
-			var simplified=simplify_gcode(evt.target.result);
-		
-			document.getElementById('file_text').innerHTML='<a id="safe_file" href="#"><h3>Safe truncated gcode file  </h3></a><br><br><textarea class="gcode" id="gcode_text">'+simplified+'</textarea>';
 			
-		    function focus_gcode(event)
-		    {
-
-		    document.getElementById("gcode_text").select();
-
-
-
-
-		    }
-
-			function click_download(event) 
-				{
-				event.preventDefault();
-				download(simplified,"truncated_"+theFile.name,theFile.type);
-				return false;
-				}
-
-			document.getElementById("safe_file").addEventListener('click',click_download,false);
-			document.getElementById("gcode_text").addEventListener('focus',focus_gcode,false);
-
-
+		    generateResultView(evt.target.result,theFile.name,theFile.type);
+		    
+			
 		
 
 
@@ -99,15 +90,57 @@ function simplify_gcode(gcode_str) // this replaces all .number with truncated v
     }
     document.getElementById('list').innerHTML = '<ul>' + output.join('') + '</ul>';
   }
+  function generateResultView(gtext,filename,filetype) //function will generate resulting html
+  {
+  
+  ////
+  var simplified=simplify_gcode(gtext);
+  document.getElementById('file_text').innerHTML='<a id="safe_file" href="#"><h3>Safe truncated gcode file  </h3></a><br><br><textarea class="gcode" id="gcode_text">'+simplified+'</textarea>';
+			
+		   
 
+			function click_download(event) 
+				{
+				event.preventDefault();
+				download(simplified,"truncated_"+filename,filetype);
+				return false;
+				}
+
+			document.getElementById("safe_file").addEventListener('click',click_download,false);
+			document.getElementById("gcode_text").addEventListener('focus',focus_gcode,false);
+
+
+  
+  ////
+  
+  }
   function handleDragOver(evt) {
     evt.stopPropagation();
     evt.preventDefault();
     evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
   }
 
+function browserisslow(source){
+ console.log(source);
+ generateResultView(source.value,"truncated_gproject.nc","application/x-netcdf");
+ 
+}
+
+function handleInputTextarea(evt) {
+var source = evt.target || evt.srcElement;
+
+       setTimeout(browserisslow, 200,source); //the text appears only after the paste event
+
+    
+    
+		    
+} 
+
   // Setup the dnd listeners.
   var dropZone = document.getElementById('drop_zone');
   dropZone.addEventListener('dragover', handleDragOver, false);
   dropZone.addEventListener('drop', handleFileSelect, false);
+  var gcodeModify= document.getElementById('gcode_to_modify');
+  gcodeModify.addEventListener('paste',handleInputTextarea,false);
+  gcodeModify.addEventListener('focus',focus_gcode,false);
 
