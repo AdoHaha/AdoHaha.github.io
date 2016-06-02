@@ -12,10 +12,10 @@ function download(text, name, type) {
     a.click();
 }
 
-function simplify_gcode(gcode_str)
+function simplify_gcode(gcode_str) // this replaces all .number with truncated version of this number
 	{
 	var re1 = new RegExp("([.])([0-9]+)","g");
-	//console.log(re1.exec(gcode_str));
+
 	function replacer(match,p1,p2,offset,string)
 		{
 			//console.log(match);
@@ -64,9 +64,17 @@ function simplify_gcode(gcode_str)
 		
 			var simplified=simplify_gcode(evt.target.result);
 		
-			document.getElementById('file_text').innerHTML='<a id="safe_file" href="#"><b>Safe file</b></a></br><span class="gcode">'+nl2br(simplified)+'</span>';
+			document.getElementById('file_text').innerHTML='<a id="safe_file" href="#"><h3>Safe truncated gcode file  </h3></a><br><br><textarea class="gcode" id="gcode_text">'+simplified+'</textarea>';
 			
-		
+		    function focus_gcode(event)
+		    {
+
+		    document.getElementById("gcode_text").select();
+
+
+
+
+		    }
 
 			function click_download(event) 
 				{
@@ -76,8 +84,9 @@ function simplify_gcode(gcode_str)
 				}
 
 			document.getElementById("safe_file").addEventListener('click',click_download,false);
-			//document.getElementById("safe_file").onclick = 
-			//click_download(event);
+			document.getElementById("gcode_text").addEventListener('focus',focus_gcode,false);
+
+
 		
 
 
