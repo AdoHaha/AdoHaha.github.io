@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: main.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: main.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>//     Fantom.js 0.0.1
+
+//     (c) 2017 Igor Zubrycki
+
+
+
+  window.output;
+  
+  /** size of bytearray command sent by websocket */
+  window.COMMAND_size=9;
+  
+  
+   /**
+   * Create a bytearray for a single command.
+   *
+   * @param {unint8_t} id - Command id.
+   * @param {short} fparam - First param to send.
+   * @param {short} sparam - Second param to send.
+   * @param {short} tparam - Third param to send.
+   * @param {uint8_t} flag - Flag information such as "latching".
+   * @param {uint8_t} frameid - The id of the frame
+   * 
+   * @returns {Uint8Array} array of bytes
+   */
+  function construct_single_command(command_type, fparam, sparam, tparam, flag, frameid)
+  {
+  var allay= new ArrayBuffer(COMMAND_size);
+  var wwiew= new DataView(allay);
+  wwiew.setUint8(0,command_type); // code
+  wwiew.setInt16(1,fparam); // fparam
+  wwiew.setInt16(3,sparam); // sparam
+  wwiew.setInt16(5,tparam); //tparam
+  wwiew.setUint8(7,flag); //flag
+  wwiew.setUint8(8,frameid); //frameid
+  
+  var allay2= new Uint8Array(allay);  
+  return allay2
+  }
+  
+  
+  /**
+   * creates the visual table with a program loaded from the esp
+   * 
+   */
+  function load_main_program()
+  {
+  
+  var command_names = {0:"debug info",220:"load program",221:"program start",222:"program stop",
+  223:"program pause",
+  2:"play",3:"pause",128:"release motor",129:"callibrate",130:"goto_pos",
+  131:"oscillate",132:"stiffen motor",133:"STOP",28:"release motors",31:"oscillate motors",32:"stiffen motors"};
+  
+  var oReq = new XMLHttpRequest();
+  oReq.timeout = 10000; // time in milliseconds
+oReq.open("GET", "/robotprogram.bin", true);
+oReq.responseType = "arraybuffer";
+
+oReq.onload = function (oEvent) {
+  var arrayBuffer = oReq.response; // Note: not oReq.responseText
+  if (arrayBuffer) {
+    window.savedprogram = new Uint8Array(arrayBuffer);
+    
+    var main_program_box=document.getElementById("main_program_box");
+    for (var i = 0; i &lt; window.savedprogram.byteLength; i+=9) {
+    
+      var button = document.createElement("button");
+      button.value= window.savedprogram[i].toString();
+      button.textContent=command_names[window.savedprogram[i]];
+      button.className="button_small button_gray function_button";
+      button.setAttribute("id","line"+ window.savedprogram[i+8].toString());
+      main_program_box.appendChild(button);
+      
+     
+    }
+    select_line_id(window.line_id);
+  }
+};
+oReq.ontimeout = function (e) {
+  load_main_program();
+};
+
+oReq.send(null);
+  }
+  
+  
+  /**
+   * Sends some example program to the esp 
+   * 
+   */
+  function send_demo_program()
+  {
+  
+  command_sequence=[save_program(),play(4),stiffen_motor(2),delay(10), oscillate(1, 5, 1, 1),delay(1),play(3)]
+  send_program(command_sequence, true);
+  
+  }
+  
+  /**
+   * Creates a command for playing on esp's usb
+   * @param {unint8_t} audio_num - id of the mp3 to play.
+   * 
+   */ 
+  function play(audio_num)
+  {
+  return construct_single_command(2,audio_num,  0, 0, 1, 0);
+  }
+  
+  /**
+   * creates a command for saving the program.
+   * 
+   * This needs to be a first command in program's array
+   * 
+   */
+  function save_program()
+  {
+  return construct_single_command(220,0,  0, 0, 1, 0);
+  }
+  
+  /**
+   * creates command to run the program.
+   * This generally should be a command being sent seperately to the controller.
+   */
+  function start_program()
+  {
+  return construct_single_command(221,0,  0, 0, 1, 0);
+  }
+  
+  /**
+   * creates a command to stop (brutally) the program
+   * @param {unint8_t} severity - how bruttaly should we stop.
+ 
+   */
+  function stop_program(severity=0)
+  {
+  return construct_single_command(222,severity,0,0,1,0);
+  }
+  
+  /**
+   * this creates a command to pause the program
+   */
+  function pause_program()
+  {
+  return construct_single_command(223,0,0,0,1,0);
+  }
+  
+  /**
+   * this command creates and sends a websocket command
+   * @param {unint8_t} id - Command id.
+   * @param {short} fparam - First param to send.
+   * @param {short} sparam - Second param to send.
+   * @param {short} tparam - Third param to send.
+   * @param {uint8_t} flag - Flag information such as "latching".
+   * @param {uint8_t} frameid - The id of the frame
+   */
+  function send_single_command(command_type, fparam, sparam, tparam, flag, frameid)
+  {
+  allay2=construct_single_command(command_type, fparam, sparam, tparam, flag, frameid);
+  websocket.send(allay2);
+  
+  }
+  
+  /**
+   * this command sends a program being a list of commands to the esp
+   * example send_program([save_program(),play(2),release_motors(ALL_MOTORS)])
+   * @param {array} list_of_commands - list of Uint8Array (compiled) commands
+   * @param {bool} numerate - flag if we want the commands to have a growing index
+
+   */
+  function send_program(list_of_commands,numerate=true)
+  {
+  // will send the whole program which will be stored on device as robotprogram.bin
+  if(numerate) // give numbers to all commands
+  if(numerate) // give numbers to all commands
+  {
+  list_of_commands.forEach(function(part, index) {
+  part[8]=index;
+  });
+  }
+  
+  whole_program=concatenate(Uint8Array,list_of_commands);
+  
+  websocket.send(whole_program);
+  }
+  
+  /*
+  concatenates all arrays into resultConstructor type array (i.e. console.log(concatenate(Uint8Array,
+    Uint8Array.of(1, 2), Uint8Array.of(3, 4)));
+  
+  */
+  
+  /**
+   *  helper function to create a one array from multiple typed arrays
+   * 
+   * @param {constructor} resultConstructor - a constructor i.e Uint8Array
+   * @param {array} arrays- array of typed arrays
+   * 
+   * @returns the concatenated array of constructor type
+   */
+  function concatenate(resultConstructor, arrays) {
+  
+    let totalLength = 0;
+    for (let arr of arrays) {
+        totalLength += arr.length;
+    }
+    
+    let result = new resultConstructor(totalLength);
+    let offset = 0;
+    for (let arr of arrays) {
+        result.set(arr, offset);
+        offset += arr.length;
+    }
+    return result;
+}
+  
+    
+  /**
+   * 
+   *  create a command to stiffen selected motor
+   * @param {uint8_t} motor_id - id of the selected motor (0-7)
+   */
+  function stiffen_motor(motor_id) //command stiffen motor
+  {
+	  return construct_single_command(132,motor_id,  0, 0, 1, 0);
+	  
+  }
+  
+  
+  
+  /**
+   * sets the position of each eye
+   * @param {short} left_eye - position of the left eye (0-100)
+   * @param {short} right_eye - position of the right eye (0-100)
+   * @param {enum} command_type - type of command (0 relative (0-100%), 1 absolute (1000-2000), 2 set min, 3 set max
+   * for example eye_pos(1500,1000,2) will set the min values for servo (and save to eeprom of the device)
+   * for normal use use close_eyes and open_eyes functions which just use the min/max values
+   */
+   function eye_pos(left_eye, right_eye,command_type=0)
+   {
+	   
+	   return construct_single_command(103,left_eye, right_eye,0, command_type, 0);
+   }
+  
+  
+  /** 
+   * closes eyes
+   */
+   function close_eyes()
+   {
+	   
+	   return eye_pos(0,0);
+   }
+   
+   /**
+    * open eyes
+    * 
+    */
+    function open_eyes()
+    {
+		return eye_pos(100,100);
+	}
+  
+  
+  
+  
+   /**
+   * 
+   *  create a command to stiffen motors from a list
+   * @param {array} motor_list - list of motors (names)
+   */ 
+  function stiffen_motors(motor_list)
+  {
+	   return construct_single_command(32,from_flags(motor_list),  0, 0, 1, 0);
+  }
+  
+   /**
+   * 
+   *  create a command to release selected motor
+   * @param {uint8_t} motor_id - id of the selected motor (0-7)
+   */
+  function release_motor(motor_id)
+  {
+    return construct_single_command(128,motor_id,  0, 0, 1, 0);
+  }
+
+
+   /**
+   * 
+   *  create a command to release motors from a list
+   * @param {array} motor_list - list of motors (names)
+   */   
+  function release_motors(motor_list)
+  {
+	  return construct_single_command(28,from_flags(motor_list),  0, 0, 1, 0);
+  }
+  
+   /**
+   * 
+   *  create a calibrate (zero encoders) command
+   */
+  function calibrate()
+  {
+  return construct_single_command(129,0,  0, 0, 1, 0);
+  }
+  
+  
+  /** 
+   * helper function to calculate encoder ticks from amplitude
+   * 
+   * @param {float} degree - degrees of amplitude
+   */
+  function from_degrees(degree)
+  {
+	  return Math.round(degree/0.35);
+  }
+  
+  /** 
+   * helper function to calculate encoder ticks from amplitude
+   * 
+   * @param {float} freq - frequency in Hz of oscillations
+   */
+  function from_hz(freq)
+  {
+	  return Math.round(freq*10);
+  }
+  
+   /**
+   * 
+   *  create a command to oscillate a selected motor
+   * @param {unint8_t} motor_id - Motor id.
+   * @param {float} amplitude - Amplitude of oscillations ( degrees) use from_degrees to calculate.
+   * @param {short} frequency - Frequency (Hz) .
+   * @param {uint8_t} latching - Flag information such as "latching".
+   */
+  function oscillate(motor_id, amplitude, frequency, latching=1)
+  {
+  return construct_single_command(131,motor_id,  from_degrees(amplitude), from_hz(frequency), latching, 0);
+	  
+  }
+
+   /**
+   * 
+   *  create a command to oscillate motors from a list of motor names
+   * @param {array} motor_list - List of motor names.
+   * @param {float} amplitude - Amplitude of oscillations use from_degrees to calculate.
+   * @param {short} frequency - Frequency (Hz) .
+   * @param {uint8_t} latching - Flag information such as "latching".
+   */
+  function oscillate_motors(motor_list, amplitude, frequency, latching=1)
+  {
+	  return construct_single_command(31,from_flags(motor_list),  from_degrees(amplitude), from_hz(frequency), latching, 0);
+  }
+  
+ /**
+  * create a command to start the program
+  */ 
+  function start_program()
+  {
+	 return construct_single_command(221,2,3,4,5,0);
+  }
+  
+  function stop_and_send()
+  {
+  websocket.send(stop_program());
+  }
+  
+  function start_and_send()
+  {
+	 websocket.send(start_program());
+  }
+
+
+  function stop(severity_level)
+  {
+	  
+        return send_single_command(222,0,0,0,0,0);	  
+  }
+  
+  
+    /**
+   * 
+   *  create a command to delay program (works only when sending the whole program)
+   * @param {short} seconds - number of seconds to delay program.
+   * @param {short} mseconds - number of miliseconds to delay program
+   * @param {short} useconds - microseconds to stop
+   */
+  function delay(seconds,mseconds=0,useconds=0)
+  {
+  return construct_single_command(3,seconds,mseconds,useconds,1,0);
+  }
+  function goto_pos(motor_id, pos, speed, latching =1)
+  {
+	  return construct_single_command(130,motor_id,from_degrees(pos),speed,latching,0);
+  }
+  
+  
+  function init()
+  {
+    window.line_id=0;
+    output = document.getElementById("output");
+    testWebSocket();
+    load_main_program();
+  }
+
+  function testWebSocket()
+  {
+	var wsUri = "ws://192.168.4.1/ws";
+    websocket = new WebSocket(wsUri);
+    websocket.onopen = function(evt) { onOpen(evt) };
+    websocket.onclose = function(evt) { onClose(evt) };
+    websocket.onmessage = function(evt) { onMessage(evt) };
+    websocket.onerror = function(evt) { onError(evt) };
+    websocket.binaryType='arraybuffer';
+  }
+  function show_main_buttons()
+  {
+  output = document.getElementById("main_buttons_box");
+  output.classList.remove("dissapear");
+  }
+  function onOpen(evt)
+  {
+    writeToScreen("CONNECTED");
+    show_main_buttons();
+    //doSend("Sming love WebSockets");
+  }
+
+  function onClose(evt)
+  {
+    writeToScreen("DISCONNECTED");
+    output = document.getElementById("main_buttons_box");
+    output.classList.add("dissapear");
+  }
+
+  
+  /*
+  this select the button to select from the program line buttons
+  */
+  function select_line_id(line_id)
+  {
+         
+              var list_current = document.getElementsByClassName("current_line");
+	     for (let part of list_current) { 
+              part.classList.remove("current_line");  }
+
+	      var new_current= document.getElementById("line"+line_id)
+	      new_current.classList.add("current_line");
+  }
+  
+  /* this takes any websocket string line and parses it
+  */
+  function parse_feedback(data_line)
+  {
+
+     
+
+	  if(data_line.substring(0,8)=="line_id:")
+	  {
+              window.line_id= data_line.substring(8,);
+              select_line_id(window.line_id);
+	  }
+
+  }
+  function onMessage(evt)
+  {
+    writeToScreen('&lt;span style="color: blue;">RESPONSE: ' + evt.data+'&lt;/span>');
+ 
+    parse_feedback(evt.data);
+    //websocket.close();
+  }
+
+  function onError(evt)
+  {
+    writeToScreen('&lt;span style="color: red;">ERROR:&lt;/span> ' + evt.data);
+  }
+
+  function doSend(message)
+  {
+    writeToScreen("SENT: " + message); 
+    websocket.send(message);
+  }
+
+  function writeToScreen(message)
+  {
+	  
+	var output = document.getElementById("output");
+    var pre = document.createElement("p");
+    pre.style.wordWrap = "break-word";
+    pre.innerHTML = message;
+    output.appendChild(pre);
+  }
+  
+  function doDisconnect()
+  {
+	var disconnect = document.getElementById("disconnect");
+	disconnect.disabled = true;
+	websocket.close();
+  }
+
+  //window.addEventListener("load", init, false);
+
+
+
+// flags for different parts
+window.SHOULDER_RIGHT=1;
+window.SHOULDER_LEFT=2;
+window.ELBOW_RIGHT=4;
+window.ELBOW_LEFT=8;
+window.HIP_RIGHT=16;
+window.HIP_LEFT=32;
+window.KNEE_RIGHT=64;
+window.KNEE_LEFT=128;
+window.ALL_MOTORS=255;
+/** function to generate a number from a list of flags
+ * * possible flags: 
+* SHOULDER_RIGHT
+* SHOULDER_LEFT
+* ELBOW_RIGHT
+* ELBOW_LEFT
+* HIP_RIGHT
+* HIP_LEFT
+* KNEE_RIGHT
+* KNEE_LEFT
+* ALL_MOTORS
+* usage: from_flags([SHOULDER_LEFT,SHOULDER_RIGHT])
+* @param {array} flag_list - list of flags to convert single number
+
+ */
+function from_flags(flag_list)
+{
+	if(Array.isArray(flag_list)){
+		
+	var mask = 0;
+	for (let flag of flag_list) {
+        mask = mask| flag;
+    }
+    return mask;
+}else // treat as single value
+{ return flag_list;
+}
+}
+
+/** function to show a value as a bits
+ */
+function byte2bits(a)
+{
+    var tmp = "";
+    for(var i = 128; i >= 1; i /= 2)
+        tmp += a&amp;i?'1':'0';
+    return tmp;
+}
+
+
+
+
+if(window.attachEvent) {
+    window.attachEvent('onload', init);
+} else {
+    if(window.onload) {
+        var curronload = window.onload;
+        var newonload = function(evt) {
+            curronload(evt);
+            init(evt);
+        };
+        window.onload = newonload;
+    } else {
+        window.onload = init;
+    }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#byte2bits">byte2bits</a></li><li><a href="global.html#calibrate">calibrate</a></li><li><a href="global.html#close_eyes">close_eyes</a></li><li><a href="global.html#concatenate">concatenate</a></li><li><a href="global.html#construct_single_command">construct_single_command</a></li><li><a href="global.html#delay">delay</a></li><li><a href="global.html#eye_pos">eye_pos</a></li><li><a href="global.html#from_degrees">from_degrees</a></li><li><a href="global.html#from_flags">from_flags</a></li><li><a href="global.html#from_hz">from_hz</a></li><li><a href="global.html#load_main_program">load_main_program</a></li><li><a href="global.html#open_eyes">open_eyes</a></li><li><a href="global.html#oscillate">oscillate</a></li><li><a href="global.html#oscillate_motors">oscillate_motors</a></li><li><a href="global.html#pause_program">pause_program</a></li><li><a href="global.html#play">play</a></li><li><a href="global.html#release_motor">release_motor</a></li><li><a href="global.html#release_motors">release_motors</a></li><li><a href="global.html#save_program">save_program</a></li><li><a href="global.html#send_demo_program">send_demo_program</a></li><li><a href="global.html#send_program">send_program</a></li><li><a href="global.html#send_single_command">send_single_command</a></li><li><a href="global.html#start_program">start_program</a></li><li><a href="global.html#stiffen_motor">stiffen_motor</a></li><li><a href="global.html#stiffen_motors">stiffen_motors</a></li><li><a href="global.html#stop_program">stop_program</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.4</a> on Wed Sep 20 2017 18:27:06 GMT+0200 (CEST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
